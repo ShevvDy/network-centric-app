@@ -1,0 +1,73 @@
+services:
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_PATH=/app/data/users.db
+    volumes:
+      - users-data:/app/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5001"]
+    ports:
+      - "5001:5001"
+    environment:
+      - DB_PATH=/app/data/orders.db
+      - USER_SERVICE_URL=http://user-service:5000
+      - NOTIFICATION_SERVICE_URL=http://notification-service:5002
+    volumes:
+      - orders-data:/app/data
+    networks:
+      - app-net
+    depends_on:
+      user-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5002"]
+    ports:
+      - "5002:5002"
+    environment:
+      - DB_PATH=/app/data/notifications.db
+    volumes:
+      - notifications-data:/app/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
+networks:
+  app-net:
+    driver: bridge
+
+volumes:
+  users-data:
+  orders-data:
+  notifications-data:
